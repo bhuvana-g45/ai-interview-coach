@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Interview Coach | Full GenAI Suite (Voice + MCQ + Coding)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      70% { transform: scale(1.15); opacity: 0; }
+      100% { transform: scale(0.95); opacity: 0; }
+    }
+    .recording-pulse::before {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 9999px;
+      background: rgba(239, 68, 68, 0.5);
+      animation: pulse-ring 1.5s infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans selection:bg-indigo-500 selection:text-white">
+
+  <div class="max-w-4xl mx-auto px-4 py-8">
+    <!-- Header -->
+    <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-6 mb-8">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+          AI Interview Coach
+        </h1>
+        <p class="text-slate-400 text-sm mt-1">
+          Generative AI Mock Interviews • Voice Clarity &amp; Confidence • MCQs &amp; Live Coding
+        </p>
+      </div>
+      <div class="flex items-center gap-2">
+        <span id="modeBadge" class="px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/30">
+          🟡 Offline Demo Mode
+        </span>
+        <button onclick="toggleSettings()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium border border-slate-700 transition">
+          ⚙️ API Key
+        </button>
+      </div>
+    </header>
+
+    <!-- API Key Drawer -->
+    <div id="settingsPanel" class="mb-6 p-5 rounded-xl bg-slate-900 border border-indigo-500/40">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold text-sm text-indigo-300">Connect Free AI API Key (Auto-Detects Groq or Gemini)</h2>
+        <button onclick="toggleSettings()" class="text-slate-400 hover:text-white text-xs">✕ Close</button>
+      </div>
+      <div class="flex flex-col sm:flex-row gap-2">
+        <input id="apiKeyInput" type="password" placeholder="Paste Groq key (gsk_...) or Gemini key (AIzaSy...)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-indigo-500" />
+        <button onclick="saveAndVerifyKey()" id="saveKeyBtn" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-semibold shrink-0 transition">
+          Save &amp; Verify Key
+        </button>
+        <button onclick="clearApiKey()" class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs text-slate-300 shrink-0">
+          Clear
+        </button>
+      </div>
+      <p id="keyStatusMsg" class="text-xs text-slate-400 mt-2">
+        • Free Groq Key (<code class="text-cyan-300">gsk_...</code>): <strong>console.groq.com/keys</strong> &nbsp;|&nbsp; Free Gemini Key (<code class="text-cyan-300">AIzaSy...</code>): <strong>aistudio.google.com/apikey</strong>
+      </p>
+    </div>
+
+    <!-- Step 1: Setup Screen -->
+    <section id="setupScreen" class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl space-y-6">
+      <h2 class="text-lg font-semibold">1. Configure Your Mock Interview</h2>
+
+      <!-- Mode Selector Tabs -->
+      <div class="grid sm:grid-cols-2 gap-3">
+        <label class="cursor-pointer">
+          <input type="radio" name="interviewMode" value="voice" checked class="peer sr-only" onchange="updateModeDescription()" />
+          <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 peer-checked:border-indigo-500 peer-checked:bg-indigo-950/20 transition">
+            <div class="font-semibold text-sm text-white">🎙️ Voice &amp; Text Interview Coach</div>
+            <p class="text-xs text-slate-400 mt-1">AI asks role-based questions aloud, listens via mic or text, and scores Clarity &amp; Confidence.</p>
+          </div>
+        </label>
+        <label class="cursor-pointer">
+          <input type="radio" name="interviewMode" value="technical" class="peer sr-only" onchange="updateModeDescription()" />
+          <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 peer-checked:border-cyan-500 peer-checked:bg-cyan-950/20 transition">
+            <div class="font-semibold text-sm text-white">💻 Technical Round (MCQs + Coding)</div>
+            <p class="text-xs text-slate-400 mt-1">3 role-specific MCQs + 2 live coding challenges with automated test cases &amp; Big-O AI review.</p>
+          </div>
+        </label>
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1.5">Target Job Role</label>
+          <select id="roleSelect" onchange="toggleCustomRole()" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-indigo-500">
+            <option value="Java Backend Developer">Java Backend Developer</option>
+            <option value="Software Developer (DSA & Core CS)">Software Developer (DSA &amp; Core CS)</option>
+            <option value="Data Analyst (SQL & Python)">Data Analyst (SQL &amp; Python)</option>
+            <option value="Generative AI Engineer">Generative AI Engineer</option>
+            <option value="HR & Behavioral Round">HR &amp; Behavioral Round</option>
+            <option value="custom">Custom Role...</option>
+          </select>
+          <input id="customRoleInput" type="text" placeholder="e.g., Full Stack React & Node Developer" class="hidden mt-2 w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm" />
+        </div>
+
+        <div>
+          <label class="block text-xs text-slate-400 mb-1.5">Experience / Difficulty Level</label>
+          <select id="levelSelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-indigo-500">
+            <option value="Fresher / Campus Placement">Fresher / Campus Placement</option>
+            <option value="Software Intern">Software Intern</option>
+            <option value="Junior Developer (1-2 Years)">Junior Developer (1–2 Years)</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs text-slate-400 mb-1.5">Optional: Resume Highlights / Skills (For Personalized Contextual Questions)</label>
+        <textarea id="resumeContext" rows="2" placeholder="e.g., Final-year B.Tech CSE, Java, DSA, SQL, Power BI, built real-time web apps..." class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500"></textarea>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+        <label id="ttsOptionWrap" class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+          <input id="ttsToggle" type="checkbox" checked class="rounded bg-slate-800 border-slate-600 text-indigo-500" />
+          Read questions aloud (AI Voice)
+        </label>
+        <button onclick="startSession()" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-semibold text-sm shadow-lg shadow-indigo-600/20 transition">
+          Start Interview Session →
+        </button>
+      </div>
+    </section>
+
+    <!-- Loading Screen -->
+    <section id="loadingScreen" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
+      <div class="inline-block w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+      <h3 class="text-base font-semibold text-indigo-300">Generative AI is preparing your interview...</h3>
+      <p class="text-xs text-slate-400">Tailoring questions to your role, difficulty, and resume context.</p>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- MODE A: VOICE & TEXT INTERVIEW SCREEN                     -->
+    <!-- ========================================================= -->
+    <section id="voiceScreen" class="hidden space-y-6">
+      <div class="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-xl px-4 py-3">
+        <div class="flex items-center gap-3">
+          <span id="voiceQuestionCounter" class="px-2.5 py-1 bg-indigo-500/20 text-indigo-300 rounded-lg text-xs font-bold">
+            Question 1 / 4
+          </span>
+          <span id="voiceRoleBadge" class="text-sm font-medium text-slate-300"></span>
+        </div>
+        <button onclick="resetAll()" class="text-xs text-slate-400 hover:text-rose-400">End Session</button>
+      </div>
+
+      <!-- AI Question Card -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-lg">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <span class="text-xs uppercase tracking-wider text-cyan-400 font-semibold">AI Interviewer</span>
+            <p id="voiceQuestionText" class="text-lg sm:text-xl font-medium text-white mt-2 leading-relaxed">
+              Loading question...
+            </p>
+          </div>
+          <button onclick="speakCurrentQuestion()" title="Replay Voice" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 shrink-0">
+            🔊
+          </button>
+        </div>
+      </div>
+
+      <!-- Answer Input Card -->
+      <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-6">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Your Answer (Speak or Type)</span>
+          <div class="flex items-center gap-3 text-xs text-slate-400">
+            <span id="liveTimer">⏱ 00:00</span>
+            <span id="liveWpm">⚡ 0 WPM</span>
+          </div>
+        </div>
+
+        <textarea id="voiceAnswerInput" rows="5" oninput="updateLiveStats()" placeholder="Click 'Start Speaking' to transcribe via microphone, or type your response here..." class="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 text-sm text-slate-100 leading-relaxed focus:outline-none focus:border-indigo-500"></textarea>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 mt-4">
+          <div class="flex items-center gap-3">
+            <button id="micBtn" onclick="toggleRecording()" class="relative flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 text-sm font-medium transition">
+              <span>🎙️</span>
+              <span id="micLabel">Start Speaking</span>
+            </button>
+            <button onclick="clearVoiceAnswer()" class="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300">
+              Clear
+            </button>
+          </div>
+
+          <button id="submitVoiceBtn" onclick="submitVoiceAnswer()" class="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-lg shadow-emerald-600/20 transition">
+            Analyze Clarity &amp; Confidence ✓
+          </button>
+        </div>
+      </div>
+
+      <!-- Feedback Card -->
+      <div id="voiceFeedbackCard" class="hidden bg-slate-900 border border-indigo-500/40 rounded-2xl p-6 space-y-5">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+          <h3 class="font-bold text-base text-indigo-300">AI Clarity &amp; Confidence Report</h3>
+          <button onclick="nextVoiceQuestion()" id="nextVoiceBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-semibold">
+            Next Question →
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+            <div class="text-xs text-slate-400">Clarity Score</div>
+            <div id="clarityScore" class="text-2xl font-bold text-cyan-400 mt-1">--/10</div>
+          </div>
+          <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+            <div class="text-xs text-slate-400">Confidence Score</div>
+            <div id="confidenceScore" class="text-2xl font-bold text-emerald-400 mt-1">--/10</div>
+          </div>
+          <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+            <div class="text-xs text-slate-400">Speaking Pace</div>
+            <div id="paceMetric" class="text-lg font-bold text-slate-200 mt-1">-- WPM</div>
+          </div>
+          <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+            <div class="text-xs text-slate-400">Filler Words</div>
+            <div id="fillerMetric" class="text-lg font-bold text-amber-400 mt-1">0</div>
+          </div>
+        </div>
+
+        <div class="grid sm:grid-cols-2 gap-4 text-sm">
+          <div class="bg-emerald-950/20 border border-emerald-500/20 rounded-xl p-4">
+            <div class="font-semibold text-emerald-300 mb-1">✓ Strengths</div>
+            <p id="strengthsText" class="text-slate-300 text-xs leading-relaxed"></p>
+          </div>
+          <div class="bg-amber-950/20 border border-amber-500/20 rounded-xl p-4">
+            <div class="font-semibold text-amber-300 mb-1">⚡ Areas to Improve</div>
+            <p id="improvementsText" class="text-slate-300 text-xs leading-relaxed"></p>
+          </div>
+        </div>
+
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
+          <div class="text-xs font-semibold text-indigo-300 mb-1">💡 High-Confidence Rewritten Answer</div>
+          <p id="sampleAnswerText" class="text-slate-300 text-xs leading-relaxed"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- MODE B: TECHNICAL ROUND (MCQs + CODING + TEST CASES)      -->
+    <!-- ========================================================= -->
+    <section id="techScreen" class="hidden space-y-8">
+      <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3">
+        <div class="flex items-center gap-2">
+          <span id="techRoleHeader" class="text-sm font-semibold text-indigo-300"></span>
+          <span id="techSourceTag" class="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300"></span>
+        </div>
+        <button onclick="resetAll()" class="text-xs text-slate-400 hover:text-rose-400">← Back to Setup</button>
+      </div>
+
+      <!-- Part A: MCQs -->
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-bold text-cyan-400">Part A: Technical MCQs (3 Questions)</h2>
+          <span id="mcqScoreBadge" class="text-xs px-3 py-1 rounded-full bg-slate-800 text-slate-300">Not Submitted</span>
+        </div>
+        <div id="mcqContainer" class="space-y-4"></div>
+        <button onclick="gradeMcqs()" class="px-5 py-2.5 bg-cyan-600 hover:bg-cyan-500 rounded-xl text-sm font-semibold text-slate-950 transition">
+          Check MCQ Answers
+        </button>
+      </div>
+
+      <hr class="border-slate-800" />
+
+      <!-- Part B: Coding + Test Cases -->
+      <div class="space-y-6">
+        <div>
+          <h2 class="text-lg font-bold text-emerald-400">Part B: Live Coding Challenges (Auto-Graded Test Cases + AI Review)</h2>
+          <p class="text-xs text-slate-400 mt-1">Click <strong>▶ Run Test Cases</strong> to execute your function in-browser, or <strong>🤖 AI Code Review</strong> for Big-O analysis.</p>
+        </div>
+        <div id="codingContainer" class="space-y-6"></div>
+      </div>
+
+      <div class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <h3 class="font-bold text-base text-white">Finish Technical Assessment</h3>
+          <p class="text-xs text-slate-400">Generates combined MCQ + Coding Test Case readiness scorecard.</p>
+        </div>
+        <button onclick="finishTechRound()" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-sm font-semibold shrink-0">
+          Generate Final Scorecard →
+        </button>
+      </div>
+    </section>
+
+    <!-- ========================================================= -->
+    <!-- UNIFIED FINAL SCORECARD SCREEN                            -->
+    <!-- ========================================================= -->
+    <section id="finalScreen" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6">
+      <div class="text-center">
+        <span class="px-3 py-1 bg-emerald-500/10 text-emerald-300 rounded-full text-xs font-semibold">Session Complete</span>
+        <h2 class="text-2xl font-bold mt-2">Final Interview Readiness Report</h2>
+        <p id="finalSubtitle" class="text-slate-400 text-sm mt-1"></p>
+      </div>
+
+      <div id="finalMetricsGrid" class="grid sm:grid-cols-3 gap-4 max-w-2xl mx-auto"></div>
+      <div id="finalHistoryList" class="space-y-3"></div>
+
+      <div class="text-center pt-4">
+        <button onclick="resetAll()" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-semibold text-sm">
+          Start New Session
+        </button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. OFFLINE FALLBACK BANKS (Ensures zero crash even without an API key)
+    // =========================================================================
+    const VOICE_FALLBACK = [
+      "Walk me through your background and the most impactful technical project on your resume.",
+      "Tell me about a challenging bug or performance bottleneck you solved and how you debugged it.",
+      "How do you explain a complex technical decision to a non-technical teammate or client?",
+      "If you had to scale one of your existing projects to 10,000 concurrent users, what would you change first?"
+    ];
+
+    const TECH_FALLBACK = {
+      mcqs: [
+        {
+          q: "What is the average time complexity of searching for a key in a HashMap?",
+          options: ["O(n)", "O(log n)", "O(1)", "O(n log n)"],
+          answer: 2,
+          explanation: "Direct bucket indexing via hashCode gives O(1) average lookup time."
+        },
+        {
+          q: "Which data structure manages recursive function calls in memory?",
+          options: ["Queue", "Call Stack (LIFO)", "Priority Queue", "Graph"],
+          answer: 1,
+          explanation: "Each recursive call pushes a stack frame onto the Call Stack."
+        },
+        {
+          q: "Which HTTP status code indicates a new resource was created successfully?",
+          options: ["200 OK", "201 Created", "400 Bad Request", "404 Not Found"],
+          answer: 1,
+          explanation: "201 Created is standard for successful POST creation requests."
+        }
+      ],
+      coding: [
+        {
+          title: "Problem 1: Two Sum Indices",
+          description: "Given an array of integers nums and an integer target, return indices [i, j] of the two numbers that add up to target.",
+          fnName: "twoSum",
+          starterCode: `function twoSum(nums, target) {\n  const map = new Map();\n  for (let i = 0; i < nums.length; i++) {\n    const diff = target - nums[i];\n    if (map.has(diff)) return [map.get(diff), i];\n    map.set(nums[i], i);\n  }\n  return [];\n}`,
+          testCases: [
+            { input: [[2, 7, 11, 15], 9], expected: [0, 1] },
+            { input: [[3, 2, 4], 6], expected: [1, 2] },
+            { input: [[3, 3], 6], expected: [0, 1] }
+          ]
+        },
+        {
+          title: "Problem 2: Valid Palindrome Check",
+          description: "Return true if string s is a palindrome ignoring case and non-alphanumeric characters, otherwise false.",
+          fnName: "isPalindrome",
+          starterCode: `function isPalindrome(s) {\n  const clean = s.toLowerCase().replace(/[^a-z0-9]/g, '');\n  return clean === clean.split('').reverse().join('');\n}`,
+          testCases: [
+            { input: ["Racecar"], expected: true },
+            { input: ["A man, a plan, a canal: Panama"], expected: true },
+            { input: ["hello"], expected: false }
+          ]
+        }
+      ]
+    };
+
+    // =========================================================================
+    // 2. APPLICATION STATE & API KEY MANAGEMENT
+    // =========================================================================
+    let state = {
+      role: '',
+      level: '',
+      resume: '',
+      // Voice mode state
+      qIndex: 0,
+      totalQuestions: 4,
+      currentQuestion: '',
+      voiceHistory: [],
+      isRecording: false,
+      startTime: null,
+      timerInterval: null,
+      elapsedSeconds: 0,
+      // Tech mode state
+      techData: null,
+      mcqScore: 0,
+      passedTests: [0, 0]
+    };
+
+    window.onload = () => {
+      const saved = localStorage.getItem('unified_coach_key') || '';
+      document.getElementById('apiKeyInput').value = saved;
+      updateBadge(saved);
+    };
+
+    function toggleSettings() {
+      document.getElementById('settingsPanel').classList.toggle('hidden');
+    }
+
+    function toggleCustomRole() {
+      const val = document.getElementById('roleSelect').value;
+      document.getElementById('customRoleInput').classList.toggle('hidden', val !== 'custom');
+    }
+
+    function updateModeDescription() {
+      const mode = document.querySelector('input[name="interviewMode"]:checked').value;
+      document.getElementById('ttsOptionWrap').classList.toggle('hidden', mode !== 'voice');
+    }
+
+    function detectProvider(key) {
+      if (!key) return null;
+      if (key.startsWith('AIza')) return 'gemini';
+      if (key.startsWith('gsk_')) return 'groq';
+      return 'invalid';
+    }
+
+    function updateBadge(key) {
+      const badge = document.getElementById('modeBadge');
+      const provider = detectProvider(key);
+      if (provider === 'gemini' || provider === 'groq') {
+        badge.textContent = `🟢 Live ${provider.toUpperCase()} AI Connected`;
+        badge.className = 'px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/40';
+      } else {
+        badge.textContent = '🟡 Offline Demo Mode';
+        badge.className = 'px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/30';
+      }
+    }
+
+    async function saveAndVerifyKey() {
+      const key = document.getElementById('apiKeyInput').value.trim();
+      const statusEl = document.getElementById('keyStatusMsg');
+      const provider = detectProvider(key);
+
+      if (!key) return clearApiKey();
+      if (provider === 'invalid') {
+        statusEl.innerHTML = `<span class="text-rose-400 font-semibold">✗ Invalid key format!</span> Paste a Groq key (<code>gsk_...</code>) or Gemini key (<code>AIzaSy...</code>).`;
+        return;
+      }
+
+      const btn = document.getElementById('saveKeyBtn');
+      btn.disabled = true;
+      btn.textContent = 'Verifying...';
+
+      const reply = await callLLM(key, 'Reply with the single word: READY', false);
+      btn.disabled = false;
+      btn.textContent = 'Save & Verify Key';
+
+      if (reply && !reply.startsWith('API_ERROR')) {
+        localStorage.setItem('unified_coach_key', key);
+        updateBadge(key);
+        statusEl.innerHTML = `<span class="text-emerald-400 font-semibold">✓ Connected to ${provider.toUpperCase()} Live AI!</span> All questions, scoring, and code reviews are now powered live by AI.`;
+      } else {
+        statusEl.innerHTML = `<span class="text-rose-400 font-semibold">✗ Connection failed:</span> ${reply}`;
+      }
+    }
+
+    function clearApiKey() {
+      localStorage.removeItem('unified_coach_key');
+      document.getElementById('apiKeyInput').value = '';
+      updateBadge('');
+      document.getElementById('keyStatusMsg').textContent = 'API key cleared. Running in Offline Demo Mode.';
+    }
+
+    // =========================================================================
+    // 3. SESSION ROUTER
+    // =========================================================================
+    async function startSession() {
+      const roleVal = document.getElementById('roleSelect').value;
+      state.role = roleVal === 'custom'
+        ? (document.getElementById('customRoleInput').value.trim() || 'Software Engineer')
+        : roleVal;
+      state.level = document.getElementById('levelSelect').value;
+      state.resume = document.getElementById('resumeContext').value.trim();
+
+      const mode = document.querySelector('input[name="interviewMode"]:checked').value;
+      document.getElementById('setupScreen').classList.add('hidden');
+
+      if (mode === 'voice') {
+        state.qIndex = 0;
+        state.voiceHistory = [];
+        document.getElementById('voiceRoleBadge').textContent = `${state.role} • ${state.level}`;
+        document.getElementById('voiceScreen').classList.remove('hidden');
+        await loadNextVoiceQuestion();
+      } else {
+        await startTechRound();
+      }
+    }
+
+    function resetAll() {
+      stopRecording();
+      window.speechSynthesis?.cancel();
+      ['voiceScreen', 'techScreen', 'finalScreen', 'loadingScreen'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+      });
+      document.getElementById('setupScreen').classList.remove('hidden');
+    }
+
+    // =========================================================================
+    // 4. MODE A: VOICE & TEXT INTERVIEW LOGIC
+    // =========================================================================
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) transcript += event.results[i][0].transcript + ' ';
+        }
+        if (transcript) {
+          const box = document.getElementById('voiceAnswerInput');
+          box.value = (box.value + ' ' + transcript).trim();
+          updateLiveStats();
+        }
+      };
+      recognition.onerror = () => stopRecording();
+    }
+
+    async function loadNextVoiceQuestion() {
+      stopRecording();
+      clearVoiceAnswer();
+      document.getElementById('voiceFeedbackCard').classList.add('hidden');
+      const submitBtn = document.getElementById('submitVoiceBtn');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Analyze Clarity & Confidence ✓';
+      document.getElementById('voiceQuestionCounter').textContent = `Question ${state.qIndex + 1} / ${state.totalQuestions}`;
+      document.getElementById('voiceQuestionText').textContent = 'Generating tailored interview question...';
+
+      const apiKey = localStorage.getItem('unified_coach_key') || '';
+      if (!detectProvider(apiKey)) {
+        state.currentQuestion = VOICE_FALLBACK[state.qIndex % VOICE_FALLBACK.length];
+      } else {
+        const prev = state.voiceHistory.map(h => `Q: ${h.question} | Candidate said: ${h.answer}`).join('\n');
+        const prompt = `You are a technical interviewer hiring for a ${state.level} ${state.role} role.
+Candidate background: ${state.resume || 'Final-year Computer Science student'}.
+Conversation so far:
+${prev || 'None yet.'}
+
+Ask interview question #${state.qIndex + 1} of ${state.totalQuestions}. If there was a previous answer, ask a smart follow-up or move to the next core competency. Keep it natural, direct, and 1-2 sentences long. Return ONLY the question text.`;
+        const res = await callLLM(apiKey, prompt, false);
+        state.currentQuestion = res.startsWith('API_ERROR') ? VOICE_FALLBACK[state.qIndex % VOICE_FALLBACK.length] : res;
+      }
+
+      document.getElementById('voiceQuestionText').textContent = state.currentQuestion;
+      if (document.getElementById('ttsToggle').checked) speakCurrentQuestion();
+    }
+
+    function speakCurrentQuestion() {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(state.currentQuestion);
+      utter.rate = 1.02;
+      window.speechSynthesis.speak(utter);
+    }
+
+    function toggleRecording() {
+      if (!recognition) return alert('Live microphone transcription requires Google Chrome or Microsoft Edge.');
+      state.isRecording ? stopRecording() : startRecording();
+    }
+
+    function startRecording() {
+      state.isRecording = true;
+      state.startTime = Date.now() - (state.elapsedSeconds * 1000);
+      recognition.start();
+      const btn = document.getElementById('micBtn');
+      btn.classList.add('recording-pulse', 'bg-rose-600', 'text-white');
+      document.getElementById('micLabel').textContent = 'Listening... (Click to Stop)';
+      state.timerInterval = setInterval(() => {
+        state.elapsedSeconds = Math.floor((Date.now() - state.startTime) / 1000);
+        updateLiveStats();
+      }, 500);
+    }
+
+    function stopRecording() {
+      if (!state.isRecording) return;
+      state.isRecording = false;
+      try { recognition.stop(); } catch (e) {}
+      clearInterval(state.timerInterval);
+      const btn = document.getElementById('micBtn');
+      btn.classList.remove('recording-pulse', 'bg-rose-600', 'text-white');
+      document.getElementById('micLabel').textContent = 'Resume Speaking';
+    }
+
+    function clearVoiceAnswer() {
+      stopRecording();
+      document.getElementById('voiceAnswerInput').value = '';
+      state.elapsedSeconds = 0;
+      document.getElementById('micLabel').textContent = 'Start Speaking';
+      updateLiveStats();
+    }
+
+    function updateLiveStats() {
+      const text = document.getElementById('voiceAnswerInput').value.trim();
+      const words = text ? text.split(/\s+/).length : 0;
+      const mins = Math.floor(state.elapsedSeconds / 60).toString().padStart(2, '0');
+      const secs = (state.elapsedSeconds % 60).toString().padStart(2, '0');
+      document.getElementById('liveTimer').textContent = `⏱ ${mins}:${secs}`;
+      const effectiveMins = state.elapsedSeconds > 3 ? (state.elapsedSeconds / 60) : (words / 130);
+      const wpm = effectiveMins > 0 ? Math.round(words / effectiveMins) : 0;
+      document.getElementById('liveWpm').textContent = `⚡ ${wpm} WPM`;
+    }
+
+    async function submitVoiceAnswer() {
+      stopRecording();
+      const answer = document.getElementById('voiceAnswerInput').value.trim();
+      if (answer.length < 10) return alert('Please provide a slightly longer answer for AI evaluation.');
+
+      const btn = document.getElementById('submitVoiceBtn');
+      btn.disabled = true;
+      btn.textContent = 'Evaluating with AI...';
+
+      const words = answer.split(/\s+/).filter(Boolean).length;
+      const fillers = (answer.match(/\b(um|uh|like|basically|actually|you know|sort of|kind of|i guess|maybe)\b/gi) || []).length;
+      const wpm = state.elapsedSeconds > 3 ? Math.round(words / (state.elapsedSeconds / 60)) : 125;
+
+      const apiKey = localStorage.getItem('unified_coach_key') || '';
+      let evalObj;
+
+      if (!detectProvider(apiKey)) {
+        evalObj = {
+          clarity_score: Math.min(10, Math.max(5, Math.round(words / 10) + 4)),
+          confidence_score: Math.min(10, Math.max(4, 9 - fillers)),
+          strengths: "Clear focus on the prompt with direct phrasing.",
+          improvements: fillers > 0 ? `Reduce filler words (${fillers} detected) and structure with Situation → Action → Result.` : "Add specific metrics or outcomes from your project.",
+          sample_answer: "In my final-year project, I identified a database query bottleneck, implemented indexing and caching, and reduced API response time by 40%."
+        };
+      } else {
+        const prompt = `Evaluate this candidate's interview response for a ${state.level} ${state.role} role.
+Question: "${state.currentQuestion}"
+Candidate Answer: "${answer}"
+Speech Telemetry: ${words} words, ${wpm} WPM, ${fillers} filler/hedging words.
+
+Return ONLY valid JSON with these exact keys:
+{
+  "clarity_score": <integer 1-10>,
+  "confidence_score": <integer 1-10>,
+  "strengths": "<1-2 concise sentences>",
+  "improvements": "<1-2 specific actionable tips>",
+  "sample_answer": "<rewrite the candidate's answer into a polished, high-confidence 2-3 sentence response>"
+}`;
+        const raw = await callLLM(apiKey, prompt, true);
+        try {
+          evalObj = JSON.parse(raw.replace(/```json|```/g, '').trim());
+        } catch (e) {
+          evalObj = {
+            clarity_score: 7,
+            confidence_score: 7,
+            strengths: "Good foundational explanation.",
+            improvements: "Include concrete technical specifics and measurable impact.",
+            sample_answer: raw
+          };
+        }
+      }
+
+      document.getElementById('clarityScore').textContent = `${evalObj.clarity_score}/10`;
+      document.getElementById('confidenceScore').textContent = `${evalObj.confidence_score}/10`;
+      document.getElementById('paceMetric').textContent = `${wpm} WPM`;
+      document.getElementById('fillerMetric').textContent = `${fillers} detected`;
+      document.getElementById('strengthsText').textContent = evalObj.strengths;
+      document.getElementById('improvementsText').textContent = evalObj.improvements;
+      document.getElementById('sampleAnswerText').textContent = evalObj.sample_answer;
+
+      document.getElementById('voiceFeedbackCard').classList.remove('hidden');
+      document.getElementById('nextVoiceBtn').textContent =
+        state.qIndex + 1 >= state.totalQuestions ? 'View Final Scorecard →' : 'Next Question →';
+
+      state.voiceHistory.push({ question: state.currentQuestion, answer, ...evalObj });
+    }
+
+    async function nextVoiceQuestion() {
+      state.qIndex++;
+      if (state.qIndex >= state.totalQuestions) {
+        showVoiceSummary();
+      } else {
+        await loadNextVoiceQuestion();
+      }
+    }
+
+    function showVoiceSummary() {
+      document.getElementById('voiceScreen').classList.add('hidden');
+      document.getElementById('finalScreen').classList.remove('hidden');
+      document.getElementById('finalSubtitle').textContent = `${state.role} • ${state.level} (Voice & Text Interview)`;
+
+      const avgC = (state.voiceHistory.reduce((s, x) => s + Number(x.clarity_score), 0) / state.voiceHistory.length).toFixed(1);
+      const avgConf = (state.voiceHistory.reduce((s, x) => s + Number(x.confidence_score), 0) / state.voiceHistory.length).toFixed(1);
+
+      document.getElementById('finalMetricsGrid').innerHTML = `
+        <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center">
+          <div class="text-xs text-slate-400">Questions Completed</div>
+          <div class="text-2xl font-bold text-indigo-400 mt-1">${state.voiceHistory.length} / ${state.totalQuestions}</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center">
+          <div class="text-xs text-slate-400">Average Clarity</div>
+          <div class="text-2xl font-bold text-cyan-400 mt-1">${avgC} / 10</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center">
+          <div class="text-xs text-slate-400">Average Confidence</div>
+          <div class="text-2xl font-bold text-emerald-400 mt-1">${avgConf} / 10</div>
+        </div>
+      `;
+
+      document.getElementById('finalHistoryList').innerHTML = state.voiceHistory.map((item, idx) => `
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
+          <div class="flex justify-between items-start gap-2">
+            <span class="text-xs font-bold text-indigo-400">Q${idx + 1}: ${item.question}</span>
+            <span class="text-xs text-slate-400 shrink-0">Clarity ${item.clarity_score}/10 • Conf ${item.confidence_score}/10</span>
+          </div>
+          <p class="text-xs text-slate-400 mt-2 italic">"${item.answer}"</p>
+        </div>
+      `).join('');
+    }
+
+    // =========================================================================
+    // 5. MODE B: TECHNICAL ROUND (MCQs + LIVE CODING + TEST CASES)
+    // =========================================================================
+    async function startTechRound() {
+      const apiKey = localStorage.getItem('unified_coach_key') || '';
+      const provider = detectProvider(apiKey);
+      state.mcqScore = 0;
+      state.passedTests = [0, 0];
+
+      if (provider === 'gemini' || provider === 'groq') {
+        document.getElementById('loadingScreen').classList.remove('hidden');
+        const prompt = `Generate a technical interview assessment for a "${state.role}" at "${state.level}" level.
+Candidate skills: ${state.resume || 'Computer Science fundamentals'}.
+Return ONLY strict valid JSON with this exact schema:
+{
+  "mcqs": [
+    {
+      "q": "Question text",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "answer": 0,
+      "explanation": "1-sentence explanation"
+    }
+  ],
+  "coding": [
+    {
+      "title": "Problem 1: Short Title",
+      "description": "Clear problem statement describing parameters and return value",
+      "fnName": "camelCaseFunctionName",
+      "starterCode": "function camelCaseFunctionName(param1) {\\n  // working JavaScript reference solution\\n}",
+      "testCases": [
+        { "input": [arg1], "expected": expectedReturnValue },
+        { "input": [arg1], "expected": expectedReturnValue },
+        { "input": [arg1], "expected": expectedReturnValue }
+      ]
+    }
+  ]
+}
+Requirements:
+- Exactly 3 MCQs and 2 small JavaScript coding problems.
+- Each coding problem must have 3 valid JSON test cases where input is an array of arguments passed to fnName(...input), and starterCode contains a working JavaScript solution.`;
+
+        const raw = await callLLM(apiKey, prompt, true);
+        document.getElementById('loadingScreen').classList.add('hidden');
+
+        try {
+          state.techData = JSON.parse(raw.replace(/```json|```/g, '').trim());
+          document.getElementById('techSourceTag').textContent = `✨ Live ${provider.toUpperCase()} AI`;
+          document.getElementById('techSourceTag').className = 'text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300';
+        } catch (e) {
+          state.techData = TECH_FALLBACK;
+          document.getElementById('techSourceTag').textContent = 'Offline Fallback';
+        }
+      } else {
+        state.techData = TECH_FALLBACK;
+        document.getElementById('techSourceTag').textContent = 'Offline Demo Bank';
+      }
+
+      document.getElementById('techRoleHeader').textContent = `${state.role} (${state.level})`;
+      document.getElementById('techScreen').classList.remove('hidden');
+      renderMcqs();
+      renderCoding();
+    }
+
+    function renderMcqs() {
+      document.getElementById('mcqScoreBadge').textContent = 'Not Submitted';
+      document.getElementById('mcqContainer').innerHTML = state.techData.mcqs.map((item, qIdx) => `
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+          <p class="text-sm font-semibold text-white">Q${qIdx + 1}. ${item.q}</p>
+          <div class="grid sm:grid-cols-2 gap-2">
+            ${item.options.map((opt, oIdx) => `
+              <label class="flex items-center gap-2.5 p-2.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-indigo-500/50 cursor-pointer text-xs">
+                <input type="radio" name="mcq-${qIdx}" value="${oIdx}" class="text-indigo-500" />
+                <span>${opt}</span>
+              </label>
+            `).join('')}
+          </div>
+          <p id="mcq-exp-${qIdx}" class="hidden text-xs pt-1"></p>
+        </div>
+      `).join('');
+    }
+
+    function gradeMcqs() {
+      let score = 0;
+      state.techData.mcqs.forEach((item, qIdx) => {
+        const selected = document.querySelector(`input[name="mcq-${qIdx}"]:checked`);
+        const expEl = document.getElementById(`mcq-exp-${qIdx}`);
+        expEl.classList.remove('hidden');
+        if (selected && Number(selected.value) === item.answer) {
+          score++;
+          expEl.className = "text-xs text-emerald-400 pt-1";
+          expEl.textContent = `✓ Correct! ${item.explanation}`;
+        } else {
+          expEl.className = "text-xs text-rose-400 pt-1";
+          expEl.textContent = `✗ Correct Answer: ${item.options[item.answer]}. ${item.explanation}`;
+        }
+      });
+      state.mcqScore = score;
+      const badge = document.getElementById('mcqScoreBadge');
+      badge.textContent = `Score: ${score} / ${state.techData.mcqs.length}`;
+      badge.className = "text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold";
+    }
+
+    function renderCoding() {
+      document.getElementById('codingContainer').innerHTML = state.techData.coding.map((prob, pIdx) => `
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="font-bold text-base text-white">${prob.title}</h3>
+            <div class="flex gap-2">
+              <button onclick="runTestCases(${pIdx})" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-semibold text-white transition">
+                ▶ Run Test Cases
+              </button>
+              <button onclick="reviewCodeWithAI(${pIdx})" id="review-btn-${pIdx}" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-xs font-semibold text-white transition">
+                🤖 AI Code Review
+              </button>
+            </div>
+          </div>
+          <p class="text-xs text-slate-300 leading-relaxed">${prob.description}</p>
+          <textarea id="code-editor-${pIdx}" rows="7" spellcheck="false" class="w-full font-mono text-xs bg-slate-950 text-emerald-300 border border-slate-700 rounded-xl p-3.5 focus:outline-none focus:border-emerald-500">${prob.starterCode}</textarea>
+          <div id="test-results-${pIdx}" class="space-y-1.5">
+            ${prob.testCases.map((tc, tIdx) => `
+              <div class="flex items-center justify-between text-xs bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg text-slate-400">
+                <span>Test Case ${tIdx + 1}: Input <code>${JSON.stringify(tc.input)}</code> → Expected: <code>${JSON.stringify(tc.expected)}</code></span>
+                <span class="text-slate-500">Pending</span>
+              </div>
+            `).join('')}
+          </div>
+          <div id="ai-review-box-${pIdx}" class="hidden p-3.5 rounded-xl bg-indigo-950/30 border border-indigo-500/30 text-xs text-slate-200 leading-relaxed"></div>
+        </div>
+      `).join('');
+    }
+
+    function runTestCases(pIdx) {
+      const prob = state.techData.coding[pIdx];
+      const userCode = document.getElementById(`code-editor-${pIdx}`).value;
+      const resultsEl = document.getElementById(`test-results-${pIdx}`);
+      let passedCount = 0;
+
+      resultsEl.innerHTML = prob.testCases.map((tc, tIdx) => {
+        try {
+          const fn = new Function(`${userCode}; return ${prob.fnName};`)();
+          const actual = fn(...JSON.parse(JSON.stringify(tc.input)));
+          const isPass = JSON.stringify(actual) === JSON.stringify(tc.expected);
+          if (isPass) passedCount++;
+          return `
+            <div class="flex items-center justify-between text-xs px-3 py-2 rounded-lg border ${isPass ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300' : 'bg-rose-950/30 border-rose-500/40 text-rose-300'}">
+              <span>Test ${tIdx + 1}: Input <code>${JSON.stringify(tc.input)}</code> | Output: <code>${JSON.stringify(actual)}</code></span>
+              <span class="font-bold">${isPass ? '✓ PASS' : '✗ FAIL'}</span>
+            </div>
+          `;
+        } catch (err) {
+          return `
+            <div class="flex items-center justify-between text-xs px-3 py-2 rounded-lg border bg-rose-950/30 border-rose-500/40 text-rose-300">
+              <span>Test ${tIdx + 1}: Runtime Error — ${err.message}</span>
+              <span class="font-bold">✗ ERROR</span>
+            </div>
+          `;
+        }
+      }).join('');
+
+      state.passedTests[pIdx] = passedCount;
+    }
+
+    async function reviewCodeWithAI(pIdx) {
+      const apiKey = localStorage.getItem('unified_coach_key') || '';
+      const box = document.getElementById(`ai-review-box-${pIdx}`);
+      const prob = state.techData.coding[pIdx];
+      const code = document.getElementById(`code-editor-${pIdx}`).value;
+
+      box.classList.remove('hidden');
+      if (!detectProvider(apiKey)) {
+        box.innerHTML = `<strong class="text-amber-300">Offline Review:</strong> Connect your Groq or Gemini API key at the top for live Big-O Time/Space Complexity analysis.`;
+        return;
+      }
+
+      const btn = document.getElementById(`review-btn-${pIdx}`);
+      btn.disabled = true;
+      box.textContent = 'Analyzing Time & Space Complexity with Live AI...';
+
+      const prompt = `Review this candidate's JavaScript solution for "${prob.title}" (${prob.description}).
+Code:
+${code}
+
+Provide a concise 3-bullet review covering:
+1. Time & Space Complexity (Big-O)
+2. Code Clarity & Edge-Case Handling
+3. One concrete optimization tip.`;
+
+      const feedback = await callLLM(apiKey, prompt, false);
+      box.innerHTML = `<strong class="text-indigo-300 block mb-1">🤖 Live AI Code Clarity & Complexity Review:</strong>${feedback.replace(/\n/g, '<br/>')}`;
+      btn.disabled = false;
+    }
+
+    function finishTechRound() {
+      gradeMcqs();
+      state.techData.coding.forEach((_, idx) => runTestCases(idx));
+
+      const totalMcqs = state.techData.mcqs.length;
+      const totalTests = state.techData.coding.reduce((sum, p) => sum + p.testCases.length, 0);
+      const totalPassed = state.passedTests.reduce((a, b) => a + b, 0);
+      const overallPct = Math.round(((state.mcqScore + totalPassed) / (totalMcqs + totalTests)) * 100);
+
+      document.getElementById('techScreen').classList.add('hidden');
+      document.getElementById('finalScreen').classList.remove('hidden');
+      document.getElementById('finalSubtitle').textContent = `${state.role} • ${state.level} (Technical Assessment)`;
+
+      document.getElementById('finalMetricsGrid').innerHTML = `
+        <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center">
+          <div class="text-xs text-slate-400">MCQ Accuracy</div>
+          <div class="text-2xl font-bold text-cyan-400 mt-1">${state.mcqScore} / ${totalMcqs}</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center">
+          <div class="text-xs text-slate-400">Test Cases Passed</div>
+          <div class="text-2xl font-bold text-emerald-400 mt-1">${totalPassed} / ${totalTests}</div>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center">
+          <div class="text-xs text-slate-400">Overall Readiness</div>
+          <div class="text-2xl font-bold text-indigo-400 mt-1">${overallPct}%</div>
+        </div>
+      `;
+      document.getElementById('finalHistoryList').innerHTML = '';
+    }
+
+    // =========================================================================
+    // 6. UNIFIED FREE LLM CALLER (GROQ & GOOGLE AI STUDIO)
+    // =========================================================================
+    async function callLLM(apiKey, prompt, jsonMode) {
+      const provider = detectProvider(apiKey);
+      try {
+        if (provider === 'gemini') {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: jsonMode ? { responseMimeType: 'application/json' } : {}
+            })
+          });
+          const data = await res.json();
+          if (data.error) return `API_ERROR: ${data.error.message}`;
+          return data.candidates?.[0]?.content?.parts?.[0]?.text || 'API_ERROR: Empty response';
+        } else if (provider === 'groq') {
+          const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: 'openai/gpt-oss-20b',
+              messages: [{ role: 'user', content: prompt }],
+              response_format: jsonMode ? { type: 'json_object' } : undefined
+            })
+          });
+          const data = await res.json();
+          if (data.error) return `API_ERROR: ${data.error.message}`;
+          return data.choices?.[0]?.message?.content || 'API_ERROR: Empty response';
+        }
+      } catch (e) {
+        return `API_ERROR: ${e.message}`;
+      }
+    }
+  </script>
+</body>
+</html>
